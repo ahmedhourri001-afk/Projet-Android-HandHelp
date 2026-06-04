@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">HandHelp</string>
+    <!-- Remplace par tes vraies valeurs Facebook -->
+    <string name="facebook_app_id">1005061275246223</string>
+    <string name="facebook_client_token">533455ac26285449a3a55260f1dabe40</string>
+    <string name="fb_login_protocol_scheme">fb1005061275246223</string>
+</resources>
