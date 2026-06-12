@@ -14,7 +14,13 @@ data class Mission(
     val organizerName: String = "",
     val imageUrl: String = "",
     val tags: List<String> = emptyList(),
-    val status: MissionStatus = MissionStatus.ACTIVE
+    val status: MissionStatus = MissionStatus.ACTIVE,
+    val participants: List<String> = emptyList(), // liste des UIDs inscrits
+    val createdAt: Long = System.currentTimeMillis()
 )
 
-enum class MissionStatus { ACTIVE, COMPLETED, CANCELLED }
+enum class MissionStatus {
+    ACTIVE,
+    COMPLETED,
+    CANCELLED
+}

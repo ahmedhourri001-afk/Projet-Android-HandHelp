@@ -51,7 +51,8 @@ fun AppNavigation() {
         ) { backStackEntry ->
             MissionDetailScreen(
                 navController = navController,
-                missionId = backStackEntry.arguments?.getString("missionId") ?: ""
+                missionId = backStackEntry.arguments?.getString("missionId") ?: "",
+                authViewModel = authViewModel
             )
         }
         composable(NavRoutes.SEARCH) {
@@ -64,13 +65,15 @@ fun AppNavigation() {
             NotificationsScreen(navController = navController)
         }
         composable(NavRoutes.HISTORY) {
-            HistoryScreen(navController = navController)
+            HistoryScreen(navController = navController,
+            authViewModel = authViewModel)
         }
         composable(NavRoutes.ORGANIZER_HOME) {
             OrganizerHomeScreen(navController = navController, authViewModel = authViewModel)
         }
         composable(NavRoutes.ADD_MISSION) {
-            AddMissionScreen(navController = navController)
+            AddMissionScreen(navController = navController,
+                authViewModel = authViewModel)
         }
     }
 }
