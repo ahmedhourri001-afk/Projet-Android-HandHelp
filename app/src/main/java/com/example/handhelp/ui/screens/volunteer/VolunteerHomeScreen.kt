@@ -14,31 +14,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.handhelp.data.model.Mission
 import com.example.handhelp.navigation.NavRoutes
 import com.example.handhelp.ui.components.MissionCard
 import com.example.handhelp.ui.theme.Primary
 import com.example.handhelp.viewmodel.AuthViewModel
-
-// Données mockées
-val mockMissions = listOf(
-    Mission("1", "Distribution alimentaire", "Aide aux familles dans le besoin dans le quartier de Hay Hassani.", "Social", "Casablanca", "15 Jan 2025", "09:00", 10, 7, "", "ONG Espoir"),
-    Mission("2", "Plantation d'arbres", "Reboisement de la forêt de Maâmora avec l'association Verte Vie.", "Environnement", "Rabat", "20 Jan 2025", "08:00", 20, 12, "", "Verte Vie"),
-    Mission("3", "Soutien scolaire", "Aide aux devoirs pour enfants défavorisés à Fès.", "Éducation", "Fès", "18 Jan 2025", "14:00", 5, 3, "", "Éclaire"),
-    Mission("4", "Visite aux personnes âgées", "Accompagnement et divertissement en maison de retraite.", "Santé", "Marrakech", "22 Jan 2025", "10:00", 8, 8, "", "Solidarité Senior"),
-)
+import com.example.handhelp.viewmodel.MissionUiState
+import com.example.handhelp.viewmodel.MissionViewModel
 
 val categories = listOf("Tous", "Social", "Environnement", "Éducation", "Santé", "Sport")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VolunteerHomeScreen(navController: NavController, authViewModel: AuthViewModel) {
+fun VolunteerHomeScreen(
+    navController: NavController,
+    authViewModel: AuthViewModel,
+    missionViewModel: MissionViewModel = hiltViewModel()
+) {
     val currentUser by authViewModel.currentUser.collectAsState()
-    var selectedCategory by remember { mutableStateOf("Tous") }
+    val missions by missionViewModel.missions.collectAsState()
+    val selectedCategory by missionViewModel.selectedCategory.collectAsState()
+    val uiState by missionViewModel.uiState.collectAsState()
+    val participatedMissions by missionViewModel.participatedMissions.collectAsState()
 
-    val filteredMissions = if (selectedCategory == "Tous") mockMissions
-    else mockMissions.filter { it.category == selectedCategory }
+    // Charger les missions au lancement
+    LaunchedEffect(Unit) {
+        missionViewModel.loadActiveMissions()
+        currentUser?.uid?.let { missionViewModel.loadParticipatedMissions(it) }
+    }
+
+    // Filtrer par catégorie
+    val filteredMissions = if (selectedCategory == "Tous") missions
+    else missions.filter { it.category == selectedCategory }
 
     Scaffold(
         topBar = {
@@ -70,46 +78,62 @@ fun VolunteerHomeScreen(navController: NavController, authViewModel: AuthViewMod
         },
         bottomBar = {
             NavigationBar {
-                // ✅ Utilisation directe de NavigationBarItem de Material3
-                // sans fonction privée qui crée le conflit de noms
                 NavigationBarItem(
-                    selected = true,
-                    onClick = {},
-                    icon = { Icon(Icons.Filled.Home, "Accueil") },
+                    selected = true, onClick = {},
+                    icon = { Icon(Icons.Filled.Home, null) },
                     label = { Text("Accueil") }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate(NavRoutes.SEARCH) },
-                    icon = { Icon(Icons.Filled.Search, "Recherche") },
+                    icon = { Icon(Icons.Filled.Search, null) },
                     label = { Text("Recherche") }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate(NavRoutes.HISTORY) },
-                    icon = { Icon(Icons.Filled.History, "Historique") },
+                    icon = { Icon(Icons.Filled.History, null) },
                     label = { Text("Historique") }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = { navController.navigate(NavRoutes.PROFILE) },
-                    icon = { Icon(Icons.Filled.Person, "Profil") },
+                    icon = { Icon(Icons.Filled.Person, null) },
                     label = { Text("Profil") }
                 )
             }
         }
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+
+            // Stats bénévole
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatCard("12", "Missions\nréalisées", Icons.Filled.CheckCircle, Modifier.weight(1f))
-                    StatCard("48h", "Heures\nbénévoles", Icons.Filled.Timer, Modifier.weight(1f))
-                    StatCard("5★", "Score\ncommunauté", Icons.Filled.Star, Modifier.weight(1f))
+                    StatCard(
+                        value = "${participatedMissions.size}",
+                        label = "Missions\nréalisées",
+                        icon = Icons.Filled.CheckCircle,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        value = "${missions.size}",
+                        label = "Disponibles",
+                        icon = Icons.Filled.Explore,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        value = categories.size.toString(),
+                        label = "Catégories",
+                        icon = Icons.Filled.Category,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
+
+            // Filtres catégories
             item {
                 Text(
                     "Catégories",
@@ -123,26 +147,93 @@ fun VolunteerHomeScreen(navController: NavController, authViewModel: AuthViewMod
                     items(categories) { cat ->
                         FilterChip(
                             selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
+                            onClick = { missionViewModel.selectCategory(cat) },
                             label = { Text(cat) }
                         )
                     }
                 }
                 Spacer(Modifier.height(8.dp))
             }
+
+            // Titre liste + compteur
             item {
-                Text(
-                    "Missions disponibles",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Missions disponibles",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        "${filteredMissions.size} mission(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
             }
-            items(filteredMissions) { mission ->
-                MissionCard(
-                    mission = mission,
-                    onClick = { navController.navigate(NavRoutes.missionDetail(mission.id)) }
-                )
+
+            // État chargement
+            when (uiState) {
+                is MissionUiState.Loading -> {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Primary)
+                        }
+                    }
+                }
+                is MissionUiState.Error -> {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                        ) {
+                            Text(
+                                (uiState as MissionUiState.Error).message,
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    if (filteredMissions.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Filled.SearchOff, null,
+                                        Modifier.size(64.dp), tint = Color.LightGray
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "Aucune mission disponible\ndans cette catégorie",
+                                        color = Color.Gray,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(filteredMissions) { mission ->
+                            MissionCard(
+                                mission = mission,
+                                onClick = {
+                                    navController.navigate(NavRoutes.missionDetail(mission.id))
+                                }
+                            )
+                        }
+                    }
+                }
             }
+
             item { Spacer(Modifier.height(16.dp)) }
         }
     }
