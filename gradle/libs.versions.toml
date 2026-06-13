@@ -32,6 +32,9 @@ firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 facebook-login = { group = "com.facebook.android", name = "facebook-login", version.ref = "facebookLogin" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

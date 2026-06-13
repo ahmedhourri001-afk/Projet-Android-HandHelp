@@ -22,6 +22,7 @@ import com.example.handhelp.ui.theme.Primary
 import com.example.handhelp.viewmodel.AuthViewModel
 import com.example.handhelp.viewmodel.MissionUiState
 import com.example.handhelp.viewmodel.MissionViewModel
+import com.example.handhelp.viewmodel.NotificationViewModel
 
 val categories = listOf("Tous", "Social", "Environnement", "Éducation", "Santé", "Sport")
 
@@ -30,18 +31,23 @@ val categories = listOf("Tous", "Social", "Environnement", "Éducation", "Santé
 fun VolunteerHomeScreen(
     navController: NavController,
     authViewModel: AuthViewModel,
-    missionViewModel: MissionViewModel = hiltViewModel()
+    missionViewModel: MissionViewModel = hiltViewModel(),
+    notificationViewModel: NotificationViewModel = hiltViewModel()
 ) {
     val currentUser by authViewModel.currentUser.collectAsState()
     val missions by missionViewModel.missions.collectAsState()
     val selectedCategory by missionViewModel.selectedCategory.collectAsState()
     val uiState by missionViewModel.uiState.collectAsState()
     val participatedMissions by missionViewModel.participatedMissions.collectAsState()
+    val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
     // Charger les missions au lancement
-    LaunchedEffect(Unit) {
-        missionViewModel.loadActiveMissions()
-        currentUser?.uid?.let { missionViewModel.loadParticipatedMissions(it) }
+    LaunchedEffect(currentUser) {
+        currentUser?.uid?.let { userId ->
+            missionViewModel.loadActiveMissions()
+            missionViewModel.loadParticipatedMissions(userId)
+            notificationViewModel.loadNotifications(userId)
+        }
     }
 
     // Filtrer par catégorie
@@ -65,8 +71,20 @@ fun VolunteerHomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(NavRoutes.NOTIFICATIONS) }) {
-                        BadgedBox(badge = { Badge { Text("3") } }) {
+                    IconButton(
+                        onClick = {
+                            navController.navigate(NavRoutes.NOTIFICATIONS)
+                        }
+                    ) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadCount > 0) {
+                                    Badge {
+                                        Text("$unreadCount")
+                                    }
+                                }
+                            }
+                        ) {
                             Icon(Icons.Filled.Notifications, null)
                         }
                     }

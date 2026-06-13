@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.example.handhelp.service.HandHelpFirebaseMessagingService
+import com.example.handhelp.repository.NotificationRepository
 
 // États possibles de l'authentification
 sealed class AuthState {
@@ -31,7 +33,8 @@ sealed class AuthState {
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val notificationRepository: NotificationRepository
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
@@ -60,6 +63,7 @@ class AuthViewModel @Inject constructor(
             result.onSuccess { user ->
                 _currentUser.value = user
                 _authState.value = AuthState.Authenticated
+                saveFcmToken(uid)
             }.onFailure {
                 _authState.value = AuthState.NeedsRoleSelection(uid)
             }
@@ -88,6 +92,13 @@ class AuthViewModel @Inject constructor(
                 _authState.value = AuthState.NeedsRoleSelection(firebaseUser.uid)
             }.onFailure { e ->
                 _authState.value = AuthState.Error(e.localizedMessage ?: "Erreur d'inscription")
+            }
+        }
+    }
+    private fun saveFcmToken(uid: String) {
+        HandHelpFirebaseMessagingService.getToken { token ->
+            viewModelScope.launch {
+                notificationRepository.saveFcmToken(uid, token)
             }
         }
     }
