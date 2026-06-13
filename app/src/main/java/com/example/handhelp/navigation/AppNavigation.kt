@@ -14,6 +14,7 @@ import com.example.handhelp.ui.screens.role.RoleSelectionScreen
 import com.example.handhelp.ui.screens.volunteer.*
 import com.example.handhelp.ui.screens.organizer.*
 import com.example.handhelp.viewmodel.AuthViewModel
+import com.example.handhelp.viewmodel.NotificationViewModel
 
 @Composable
 fun AppNavigation() {
@@ -62,7 +63,8 @@ fun AppNavigation() {
             ProfileScreen(navController = navController, authViewModel = authViewModel)
         }
         composable(NavRoutes.NOTIFICATIONS) {
-            NotificationsScreen(navController = navController)
+            NotificationsScreen(navController = navController,
+                authViewModel = authViewModel)
         }
         composable(NavRoutes.HISTORY) {
             HistoryScreen(navController = navController,

@@ -1,7 +1,10 @@
 package com.example.handhelp.repository
 
+import android.util.Log
 import com.example.handhelp.data.model.Mission
 import com.example.handhelp.data.model.MissionStatus
+import com.example.handhelp.data.model.Notification
+import com.example.handhelp.data.model.NotificationType
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -15,8 +18,8 @@ import javax.inject.Singleton
 class MissionRepository @Inject constructor(
     private val firestore: FirebaseFirestore
 ) {
-    // Référence à la collection Firestore
     private val missionsCollection = firestore.collection("missions")
+    private val notificationsCollection = firestore.collection("notifications")
 
     // ─────────────────────────────────────────
     // CREATE — Créer une nouvelle mission
@@ -33,7 +36,7 @@ class MissionRepository @Inject constructor(
     }
 
     // ─────────────────────────────────────────
-    // READ — Toutes les missions actives (temps réel)
+    // READ — Toutes les missions actives
     // ─────────────────────────────────────────
     fun getActiveMissions(): Flow<Result<List<Mission>>> = callbackFlow {
         val listener = missionsCollection
@@ -44,8 +47,8 @@ class MissionRepository @Inject constructor(
                     trySend(Result.failure(error))
                     return@addSnapshotListener
                 }
-                val missions = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Mission::class.java)
+                val missions = snapshot?.documents?.mapNotNull {
+                    it.toObject(Mission::class.java)
                 } ?: emptyList()
                 trySend(Result.success(missions))
             }
@@ -64,8 +67,8 @@ class MissionRepository @Inject constructor(
                     trySend(Result.failure(error))
                     return@addSnapshotListener
                 }
-                val missions = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Mission::class.java)
+                val missions = snapshot?.documents?.mapNotNull {
+                    it.toObject(Mission::class.java)
                 } ?: emptyList()
                 trySend(Result.success(missions))
             }
@@ -73,7 +76,7 @@ class MissionRepository @Inject constructor(
     }
 
     // ─────────────────────────────────────────
-    // READ — Missions auxquelles un bénévole participe
+    // READ — Missions d'un bénévole
     // ─────────────────────────────────────────
     fun getMissionsByParticipant(userId: String): Flow<Result<List<Mission>>> = callbackFlow {
         val listener = missionsCollection
@@ -84,8 +87,8 @@ class MissionRepository @Inject constructor(
                     trySend(Result.failure(error))
                     return@addSnapshotListener
                 }
-                val missions = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Mission::class.java)
+                val missions = snapshot?.documents?.mapNotNull {
+                    it.toObject(Mission::class.java)
                 } ?: emptyList()
                 trySend(Result.success(missions))
             }
@@ -93,7 +96,7 @@ class MissionRepository @Inject constructor(
     }
 
     // ─────────────────────────────────────────
-    // READ — Une mission par ID (one-shot)
+    // READ — Mission par ID
     // ─────────────────────────────────────────
     suspend fun getMissionById(missionId: String): Result<Mission> {
         return try {
@@ -107,60 +110,130 @@ class MissionRepository @Inject constructor(
     }
 
     // ─────────────────────────────────────────
-    // UPDATE — Modifier une mission
-    // ─────────────────────────────────────────
-    suspend fun updateMission(mission: Mission): Result<Unit> {
-        return try {
-            missionsCollection.document(mission.id).set(mission).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // ─────────────────────────────────────────
-    // UPDATE — S'inscrire à une mission
+    // UPDATE — S'inscrire + envoyer notification
     // ─────────────────────────────────────────
     suspend fun joinMission(missionId: String, userId: String): Result<Unit> {
         return try {
-            val doc = missionsCollection.document(missionId)
-            firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(doc)
-                val mission = snapshot.toObject(Mission::class.java)
-                    ?: throw Exception("Mission introuvable")
+            val missionDoc = missionsCollection.document(missionId)
 
-                if (userId in mission.participants) {
-                    throw Exception("Vous êtes déjà inscrit à cette mission")
-                }
-                if (mission.volunteersEnrolled >= mission.volunteersNeeded) {
-                    throw Exception("Cette mission est complète")
-                }
+            // 1. Récupérer la mission
+            val missionSnapshot = missionDoc.get().await()
+            val mission = missionSnapshot.toObject(Mission::class.java)
+                ?: return Result.failure(Exception("Mission introuvable"))
 
-                val newParticipants = mission.participants + userId
-                transaction.update(doc, "participants", newParticipants)
-                transaction.update(doc, "volunteersEnrolled", newParticipants.size)
-            }.await()
+            // 2. Vérifications
+            if (userId in mission.participants) {
+                return Result.failure(Exception("Vous êtes déjà inscrit à cette mission"))
+            }
+            if (mission.volunteersEnrolled >= mission.volunteersNeeded) {
+                return Result.failure(Exception("Cette mission est complète"))
+            }
+
+            // 3. Mettre à jour les participants
+            val newParticipants = mission.participants + userId
+            missionDoc.update(
+                mapOf(
+                    "participants" to newParticipants,
+                    "volunteersEnrolled" to newParticipants.size
+                )
+            ).await()
+
+            Log.d("MISSION", "✅ Inscription réussie pour userId=$userId")
+
+            // 4. Récupérer le nom du bénévole
+            val volunteerDoc = firestore.collection("users")
+                .document(userId).get().await()
+            val volunteerName = volunteerDoc.getString("displayName") ?: "Un bénévole"
+
+            Log.d("MISSION", "👤 Bénévole : $volunteerName")
+            Log.d("MISSION", "📣 Envoi notif à organisateur : ${mission.organizerId}")
+
+            // 5. Notifier l'organisateur — inscription
+            val joinNotifRef = notificationsCollection.document()
+            val joinNotif = Notification(
+                id = joinNotifRef.id,
+                userId = mission.organizerId,
+                title = "Nouveau bénévole ! 🎉",
+                body = "$volunteerName vient de rejoindre votre mission \"${mission.title}\"",
+                type = NotificationType.MISSION_JOINED,
+                missionId = missionId,
+                isRead = false,
+                createdAt = System.currentTimeMillis()
+            )
+            joinNotifRef.set(joinNotif).await()
+            Log.d("MISSION", "✅ Notification MISSION_JOINED créée")
+
+            // 6. Notifier si mission complète
+            if (newParticipants.size >= mission.volunteersNeeded) {
+                val fullNotifRef = notificationsCollection.document()
+                val fullNotif = Notification(
+                    id = fullNotifRef.id,
+                    userId = mission.organizerId,
+                    title = "Mission complète ! ✅",
+                    body = "Votre mission \"${mission.title}\" a atteint le nombre maximum de bénévoles.",
+                    type = NotificationType.MISSION_FULL,
+                    missionId = missionId,
+                    isRead = false,
+                    createdAt = System.currentTimeMillis()
+                )
+                fullNotifRef.set(fullNotif).await()
+                Log.d("MISSION", "✅ Notification MISSION_FULL créée")
+            }
+
+            // 7. Notifier le bénévole — confirmation inscription
+            val confirmNotifRef = notificationsCollection.document()
+            val confirmNotif = Notification(
+                id = confirmNotifRef.id,
+                userId = userId,
+                title = "Inscription confirmée ✅",
+                body = "Vous êtes inscrit à la mission \"${mission.title}\" le ${mission.date}.",
+                type = NotificationType.MISSION_JOINED,
+                missionId = missionId,
+                isRead = false,
+                createdAt = System.currentTimeMillis()
+            )
+            confirmNotifRef.set(confirmNotif).await()
+            Log.d("MISSION", "✅ Notification confirmation bénévole créée")
+
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("MISSION", "❌ Erreur joinMission : ${e.message}")
             Result.failure(e)
         }
     }
 
     // ─────────────────────────────────────────
-    // UPDATE — Se désinscrire d'une mission
+    // UPDATE — Se désinscrire
     // ─────────────────────────────────────────
     suspend fun leaveMission(missionId: String, userId: String): Result<Unit> {
         return try {
-            val doc = missionsCollection.document(missionId)
-            firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(doc)
-                val mission = snapshot.toObject(Mission::class.java)
-                    ?: throw Exception("Mission introuvable")
+            val missionDoc = missionsCollection.document(missionId)
+            val missionSnapshot = missionDoc.get().await()
+            val mission = missionSnapshot.toObject(Mission::class.java)
+                ?: return Result.failure(Exception("Mission introuvable"))
 
-                val newParticipants = mission.participants - userId
-                transaction.update(doc, "participants", newParticipants)
-                transaction.update(doc, "volunteersEnrolled", newParticipants.size)
-            }.await()
+            val newParticipants = mission.participants - userId
+            missionDoc.update(
+                mapOf(
+                    "participants" to newParticipants,
+                    "volunteersEnrolled" to newParticipants.size
+                )
+            ).await()
+
+            // Notifier l'organisateur
+            val notifRef = notificationsCollection.document()
+            val notif = Notification(
+                id = notifRef.id,
+                userId = mission.organizerId,
+                title = "Désinscription d'un bénévole",
+                body = "Un bénévole s'est désinscrit de votre mission \"${mission.title}\".",
+                type = NotificationType.GENERAL,
+                missionId = missionId,
+                isRead = false,
+                createdAt = System.currentTimeMillis()
+            )
+            notifRef.set(notif).await()
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -168,13 +241,36 @@ class MissionRepository @Inject constructor(
     }
 
     // ─────────────────────────────────────────
-    // UPDATE — Changer le statut d'une mission
+    // UPDATE — Terminer une mission
     // ─────────────────────────────────────────
-    suspend fun updateMissionStatus(missionId: String, status: MissionStatus): Result<Unit> {
+    suspend fun updateMissionStatus(
+        missionId: String,
+        status: MissionStatus
+    ): Result<Unit> {
         return try {
-            missionsCollection.document(missionId)
-                .update("status", status.name)
-                .await()
+            val missionDoc = missionsCollection.document(missionId)
+            missionDoc.update("status", status.name).await()
+
+            // Si mission terminée → notifier tous les participants
+            if (status == MissionStatus.COMPLETED) {
+                val missionSnapshot = missionDoc.get().await()
+                val mission = missionSnapshot.toObject(Mission::class.java)
+                mission?.participants?.forEach { participantId ->
+                    val notifRef = notificationsCollection.document()
+                    val notif = Notification(
+                        id = notifRef.id,
+                        userId = participantId,
+                        title = "Mission terminée 🏆",
+                        body = "La mission \"${mission.title}\" est maintenant terminée. Merci pour votre engagement !",
+                        type = NotificationType.MISSION_COMPLETED,
+                        missionId = missionId,
+                        isRead = false,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    notifRef.set(notif).await()
+                }
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -194,17 +290,17 @@ class MissionRepository @Inject constructor(
     }
 
     // ─────────────────────────────────────────
-    // SEARCH — Recherche par mot-clé
+    // SEARCH — Recherche missions
     // ─────────────────────────────────────────
     suspend fun searchMissions(query: String): Result<List<Mission>> {
         return try {
-            // Firestore ne supporte pas la recherche full-text nativement
-            // On charge toutes les missions actives et on filtre côté client
             val snapshot = missionsCollection
                 .whereEqualTo("status", MissionStatus.ACTIVE.name)
                 .get()
                 .await()
-            val missions = snapshot.documents.mapNotNull { it.toObject(Mission::class.java) }
+            val missions = snapshot.documents.mapNotNull {
+                it.toObject(Mission::class.java)
+            }
             val filtered = missions.filter { mission ->
                 mission.title.contains(query, ignoreCase = true) ||
                         mission.description.contains(query, ignoreCase = true) ||
