@@ -14,6 +14,7 @@ object NavRoutes {
     const val MISSION_DETAIL = "mission_detail/{missionId}"
     const val SEARCH = "search"
     const val PROFILE = "profile"
+    const val EDIT_PROFILE = "edit_profile"
     const val NOTIFICATIONS = "notifications"
     const val HISTORY = "history"
 
