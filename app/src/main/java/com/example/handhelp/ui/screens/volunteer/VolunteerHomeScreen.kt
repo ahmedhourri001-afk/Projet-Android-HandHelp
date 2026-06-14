@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.handhelp.navigation.NavRoutes
+import com.example.handhelp.ui.components.InitialsAvatar
 import com.example.handhelp.ui.components.MissionCard
 import com.example.handhelp.ui.theme.Primary
 import com.example.handhelp.viewmodel.AuthViewModel
@@ -89,7 +90,10 @@ fun VolunteerHomeScreen(
                         }
                     }
                     IconButton(onClick = { navController.navigate(NavRoutes.PROFILE) }) {
-                        Icon(Icons.Filled.AccountCircle, null, tint = Primary)
+                        InitialsAvatar(
+                            name = currentUser?.displayName ?: "?",
+                            size = 36.dp
+                        )
                     }
                 }
             )

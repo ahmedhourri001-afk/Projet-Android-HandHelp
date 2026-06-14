@@ -15,6 +15,7 @@ import com.example.handhelp.ui.screens.volunteer.*
 import com.example.handhelp.ui.screens.organizer.*
 import com.example.handhelp.viewmodel.AuthViewModel
 import com.example.handhelp.viewmodel.NotificationViewModel
+import com.example.handhelp.ui.screens.EditProfileScreen
 
 @Composable
 fun AppNavigation() {
@@ -76,6 +77,13 @@ fun AppNavigation() {
         composable(NavRoutes.ADD_MISSION) {
             AddMissionScreen(navController = navController,
                 authViewModel = authViewModel)
+        }
+
+        composable(NavRoutes.EDIT_PROFILE) {
+            EditProfileScreen(
+                navController = navController,
+                authViewModel = authViewModel
+            )
         }
     }
 }

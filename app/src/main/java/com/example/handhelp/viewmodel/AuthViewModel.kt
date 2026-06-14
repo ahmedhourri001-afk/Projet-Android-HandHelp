@@ -95,6 +95,7 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
+
     private fun saveFcmToken(uid: String) {
         HandHelpFirebaseMessagingService.getToken { token ->
             viewModelScope.launch {
@@ -181,5 +182,19 @@ class AuthViewModel @Inject constructor(
 
     fun resetState() {
         _authState.value = AuthState.Idle
+    }
+
+    // ─────────────────────────────────────────
+    // Recharger les données utilisateur depuis Firestore
+    // (à appeler après modification du profil)
+    // ─────────────────────────────────────────
+    fun refreshUserData() {
+        val uid = authRepository.currentUser?.uid ?: return
+        viewModelScope.launch {
+            val result = authRepository.getUserFromFirestore(uid)
+            result.onSuccess { user ->
+                _currentUser.value = user
+            }
+        }
     }
 }

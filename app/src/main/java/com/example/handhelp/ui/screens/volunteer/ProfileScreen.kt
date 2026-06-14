@@ -1,9 +1,9 @@
 package com.example.handhelp.ui.screens.volunteer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -12,22 +12,42 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.handhelp.data.model.UserRole
 import com.example.handhelp.navigation.NavRoutes
+import com.example.handhelp.ui.components.InitialsAvatar
 import com.example.handhelp.ui.theme.Primary
 import com.example.handhelp.ui.theme.PrimaryVariant
 import com.example.handhelp.viewmodel.AuthViewModel
-import androidx.compose.ui.graphics.Brush
+import com.example.handhelp.viewmodel.MissionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(navController: NavController, authViewModel: AuthViewModel) {
+fun ProfileScreen(
+    navController: NavController,
+    authViewModel: AuthViewModel,
+    missionViewModel: MissionViewModel = hiltViewModel()
+) {
     val currentUser by authViewModel.currentUser.collectAsState()
+    val participatedMissions by missionViewModel.participatedMissions.collectAsState()
+    val myMissions by missionViewModel.myMissions.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+
+    val isOrganizer = currentUser?.role == UserRole.ORGANIZER
+
+    // Charger les données selon le rôle
+    LaunchedEffect(currentUser?.uid) {
+        currentUser?.uid?.let { uid ->
+            if (isOrganizer) missionViewModel.loadOrganizerMissions(uid)
+            else missionViewModel.loadParticipatedMissions(uid)
+        }
+    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -70,73 +90,160 @@ fun ProfileScreen(navController: NavController, authViewModel: AuthViewModel) {
                 .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header profil
+            // ── Header profil avec avatar initiale ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Primary, PrimaryVariant)))
-                    .padding(24.dp),
+                    .padding(vertical = 28.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier.size(90.dp).clip(CircleShape).background(Color.White.copy(0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Filled.Person, null, Modifier.size(54.dp), tint = Color.White)
-                    }
+                    // Avatar = initiale du nom, fond blanc semi-transparent
+                    InitialsAvatar(
+                        name = currentUser?.displayName ?: "?",
+                        size = 90.dp,
+                        textColor = Color.White,
+                        modifier = Modifier.background(
+                            Color.White.copy(alpha = 0.0f) // transparent, la couleur vient de InitialsAvatar
+                        )
+                    )
+
                     Spacer(Modifier.height(12.dp))
-                    Text(currentUser?.displayName ?: "Utilisateur", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                    Text(currentUser?.email ?: "", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(0.85f))
-                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        currentUser?.displayName?.ifBlank { "Utilisateur" } ?: "Utilisateur",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
+                    )
+                    Text(
+                        currentUser?.email ?: "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(0.85f)
+                    )
+
+                    // Bio (si renseignée)
+                    if (currentUser?.bio?.isNotBlank() == true) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            currentUser?.bio ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(0.8f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(10.dp))
                     SuggestionChip(
                         onClick = {},
-                        label = { Text(if (currentUser?.role?.name == "ORGANIZER") "Organisateur" else "Bénévole", color = Primary) },
+                        label = {
+                            Text(
+                                if (isOrganizer) "Organisateur" else "Bénévole",
+                                color = Primary
+                            )
+                        },
                         colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color.White)
                     )
                 }
             }
 
-            // Stats
+            // ── Stats dynamiques ──
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("12" to "Missions", "48h" to "Heures", "8" to "Badges").forEach { (v, l) ->
-                    Card(modifier = Modifier.weight(1f)) {
-                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(v, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Primary)
-                            Text(l, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        }
+                if (isOrganizer) {
+                    val totalVolunteers = myMissions.sumOf { it.volunteersEnrolled }
+                    StatBox("${myMissions.size}", "Missions créées", Modifier.weight(1f))
+                    StatBox("$totalVolunteers", "Bénévoles", Modifier.weight(1f))
+                    StatBox("${myMissions.count { it.status.name == "COMPLETED" }}", "Terminées", Modifier.weight(1f))
+                } else {
+                    val completed = participatedMissions.count { it.status.name == "COMPLETED" }
+                    StatBox("${participatedMissions.size}", "Missions", Modifier.weight(1f))
+                    StatBox("$completed", "Terminées", Modifier.weight(1f))
+                    StatBox(if (currentUser?.phone?.isNotBlank() == true) "✓" else "—", "Téléphone", Modifier.weight(1f))
+                }
+            }
+
+            // ── Téléphone (si renseigné) ──
+            if (currentUser?.phone?.isNotBlank() == true) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Phone, null, tint = Primary, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(currentUser?.phone ?: "", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
 
-            // Paramètres
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp)) {
+            Spacer(Modifier.height(8.dp))
+
+            // ── Menu paramètres ──
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
                 Column {
-                    listOf(
-                        Triple(Icons.Filled.Edit, "Modifier le profil", {}),
-                        Triple(Icons.Filled.Notifications, "Notifications", {}),
-                        Triple(Icons.Filled.Security, "Sécurité", {}),
-                        Triple(Icons.Filled.Help, "Aide & Support", {})
-                    ).forEachIndexed { i, (icon, title, action) ->
-                        ListItem(
-                            headlineContent = { Text(title) },
-                            leadingContent = { Icon(icon, null, tint = Primary) },
-                            trailingContent = { Icon(Icons.Filled.ChevronRight, null) },
-                            modifier = Modifier.clickableWithRipple { action() }
-                        )
-                        if (i < 3) Divider(modifier = Modifier.padding(start = 56.dp))
-                    }
+                    ProfileMenuItem(
+                        icon = Icons.Filled.Edit,
+                        title = "Modifier le profil",
+                        onClick = { navController.navigate(NavRoutes.EDIT_PROFILE) }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                    ProfileMenuItem(
+                        icon = Icons.Filled.Notifications,
+                        title = "Notifications",
+                        onClick = { navController.navigate(NavRoutes.NOTIFICATIONS) }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                    ProfileMenuItem(
+                        icon = Icons.Filled.Security,
+                        title = "Sécurité",
+                        onClick = { }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                    ProfileMenuItem(
+                        icon = Icons.Filled.Help,
+                        title = "Aide & Support",
+                        onClick = { }
+                    )
                 }
             }
+
             Spacer(Modifier.height(24.dp))
         }
     }
 }
 
-// Extension helper
-fun Modifier.clickableWithRipple(onClick: () -> Unit) = this.then(
-    Modifier
-)
+@Composable
+private fun StatBox(value: String, label: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Primary.copy(0.08f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Primary)
+            Text(label, style = MaterialTheme.typography.bodySmall, color = Color.Gray, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun ProfileMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    onClick: () -> Unit
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        leadingContent = { Icon(icon, null, tint = Primary) },
+        trailingContent = { Icon(Icons.Filled.ChevronRight, null, tint = Color.Gray) },
+        modifier = Modifier.clickable { onClick() }
+    )
+}

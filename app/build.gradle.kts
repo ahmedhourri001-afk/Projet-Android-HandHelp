@@ -46,6 +46,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     }
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-deprecation")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -67,4 +71,5 @@ dependencies {
     implementation(libs.facebook.login)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.firebase.messaging)
+
 }
