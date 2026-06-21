@@ -16,6 +16,8 @@ import com.example.handhelp.ui.screens.organizer.*
 import com.example.handhelp.viewmodel.AuthViewModel
 import com.example.handhelp.viewmodel.NotificationViewModel
 import com.example.handhelp.ui.screens.EditProfileScreen
+import com.example.handhelp.ui.screens.SecurityScreen
+import com.example.handhelp.ui.screens.HelpSupportScreen
 
 @Composable
 fun AppNavigation() {
@@ -84,6 +86,16 @@ fun AppNavigation() {
                 navController = navController,
                 authViewModel = authViewModel
             )
+        }
+        composable(NavRoutes.SECURITY) {
+            SecurityScreen(
+                navController = navController,
+                authViewModel = authViewModel
+            )
+        }
+
+        composable(NavRoutes.HELP_SUPPORT) {
+            HelpSupportScreen(navController = navController)
         }
     }
 }
