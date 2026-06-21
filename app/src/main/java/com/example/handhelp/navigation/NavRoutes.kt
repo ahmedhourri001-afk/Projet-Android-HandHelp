@@ -15,6 +15,8 @@ object NavRoutes {
     const val SEARCH = "search"
     const val PROFILE = "profile"
     const val EDIT_PROFILE = "edit_profile"
+    const val SECURITY = "security"
+    const val HELP_SUPPORT = "help_support"
     const val NOTIFICATIONS = "notifications"
     const val HISTORY = "history"
 

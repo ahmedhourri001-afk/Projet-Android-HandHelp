@@ -202,13 +202,13 @@ fun ProfileScreen(
                     ProfileMenuItem(
                         icon = Icons.Filled.Security,
                         title = "Sécurité",
-                        onClick = { }
+                        onClick = { navController.navigate(NavRoutes.SECURITY) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
                     ProfileMenuItem(
                         icon = Icons.Filled.Help,
                         title = "Aide & Support",
-                        onClick = { }
+                        onClick = { navController.navigate(NavRoutes.HELP_SUPPORT) }
                     )
                 }
             }
