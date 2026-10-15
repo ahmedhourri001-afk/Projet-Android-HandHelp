@@ -1,0 +1,21 @@
+
+name: Android HandHelp - Verification
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  verification:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Verifier les fichiers du projet
+        run: |
+          echo "Le workflow GitHub Actions fonctionne !"
+          ls -la
